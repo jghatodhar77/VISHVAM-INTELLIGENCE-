@@ -14,15 +14,16 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
-
-  // Proxy endpoint for Lyzr AI to hide API Key
+  
+  // Proxy endpoint for Lyzr AI
   app.post("/api/chat", async (req, res) => {
     const { message, session_id } = req.body;
-    const apiKey = process.env.LYZR_API_KEY;
-    const agentId = process.env.AGENT_ID;
+    const apiKey = process.env.LYZR_API_KEY || "sk-default-4ihP8Xqj1dUPYqGxYmRoWNiSpdC7RS4A";
+    const agentId = process.env.AGENT_ID || "69f5ee3b492d085f87b994e4";
 
-    if (!apiKey || !agentId) {
-      return res.status(500).json({ error: "API Key or Agent ID not configured" });
+    if (!apiKey || apiKey === "sk-default-4ihP8Xqj1dUPYqGxYmRoWNiSpdC7RS4A") {
+       // Just to log if it's using the default
+       console.log("Using default/provided API key");
     }
 
     try {
@@ -33,30 +34,20 @@ async function startServer() {
           "x-api-key": apiKey,
         },
         body: JSON.stringify({
-          user_id: "jghatodhar77@gmail.com", // Keeping the user email as provided
+          user_id: "jghatodhar77@gmail.com",
           agent_id: agentId,
-          session_id: session_id || `${agentId}-${Date.now()}`,
+          session_id: session_id,
           message: message,
         }),
       });
 
       if (!response.ok) {
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch (e) {
-          errorData = { error: "Failed to parse error response from Lyzr" };
-        }
-        console.error("Lyzr API error:", errorData);
-        return res.status(response.status).json({
-          error: "Lyzr API Error",
-          details: errorData,
-          status: response.status
-        });
+        const errorText = await response.text();
+        console.error("Lyzr API error:", errorText);
+        return res.status(response.status).json({ error: "Lyzr API error", details: errorText });
       }
 
       const data = await response.json();
-      console.log("Lyzr API response data:", JSON.stringify(data, null, 2));
       res.json(data);
     } catch (error) {
       console.error("Server error:", error);

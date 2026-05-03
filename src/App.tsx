@@ -16,7 +16,11 @@ import {
   Bot,
   MoreVertical,
   Cpu,
-  Github
+  Github,
+  Lock,
+  Shield,
+  ShieldAlert,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -26,6 +30,12 @@ import { Message, ChatSession } from './types';
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [logoLoaded, setLogoLoaded] = useState(false);
+  const [isLocked, setIsLocked] = useState(true);
+  const [pin, setPin] = useState('');
+  const [attempts, setAttempts] = useState(0);
+  const [isShaking, setIsShaking] = useState(false);
+  const [lockoutTime, setLockoutTime] = useState<number | null>(null);
+  const [timeLeft, setTimeLeft] = useState(0);
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     const saved = localStorage.getItem('vishwam_sessions');
     return saved ? JSON.parse(saved) : [];
@@ -39,7 +49,63 @@ export default function App() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile && isSidebarOpen) {
+        setIsSidebarOpen(false);
+      }
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  useEffect(() => {
+    if (lockoutTime) {
+      const interval = setInterval(() => {
+        const remaining = Math.max(0, Math.ceil((lockoutTime - Date.now()) / 1000));
+        setTimeLeft(remaining);
+        if (remaining === 0) {
+          setLockoutTime(null);
+          setAttempts(0);
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [lockoutTime]);
+
+  useEffect(() => {
+    if (pin.length === 4) {
+      if (pin === '0405') {
+        setTimeout(() => {
+          setIsLocked(false);
+          setAttempts(0);
+          setPin('');
+        }, 300);
+      } else {
+        const newAttempts = attempts + 1;
+        setAttempts(newAttempts);
+        setIsShaking(true);
+        setPin('');
+        
+        setTimeout(() => setIsShaking(false), 500);
+
+        if (newAttempts >= 5) {
+          const tenMinutes = 10 * 60 * 1000;
+          setLockoutTime(Date.now() + tenMinutes);
+        }
+      }
+    }
+  }, [pin, attempts]);
+
+  const handlePinSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+  };
 
   const currentSession = sessions.find(s => s.id === currentSessionId);
 
@@ -130,6 +196,7 @@ export default function App() {
     setSessions(updatedSessions);
     setInput('');
     setIsLoading(true);
+    setPin(''); // Just to be safe
 
     try {
       const response = await fetch('/api/chat', {
@@ -145,14 +212,13 @@ export default function App() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || errorData.message || 'Failed to get response');
+        throw new Error(errorData.error || errorData.details || 'Failed to get response');
       }
 
       const data = await response.json();
       
-      // Lyzr Agent API usually returns response in 'response' or 'message' or 'response_text'
-      const assistantContent = data.response || data.message || data.response_text || 
-                               (typeof data === 'string' ? data : JSON.stringify(data));
+      // Lyzr API usually returns the response in a 'response' or 'message' field
+      const assistantContent = data.response || data.message || (typeof data === 'string' ? data : JSON.stringify(data));
 
       const assistantMessage: Message = {
         role: 'assistant',
@@ -187,7 +253,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-[#050505] text-gray-200 selection:bg-red-900/30 overflow-hidden font-sans">
+    <div className="flex h-[100dvh] bg-[#050505] text-gray-200 selection:bg-red-900/30 overflow-hidden font-sans">
       <AnimatePresence>
         {showSplash && (
           <motion.div
@@ -216,7 +282,7 @@ export default function App() {
                 <div className="relative z-10 w-48 h-48 md:w-64 md:h-64 flex items-center justify-center border-2 border-red-600/30 rounded-2xl bg-black/40 backdrop-blur-sm shadow-[0_0_50px_rgba(225,29,72,0.1)] overflow-hidden">
                    <img 
                       src="/image.png" 
-                      alt="Vishvam Logo" 
+                      alt="Vishwam Logo" 
                       className={`absolute inset-0 w-full h-full object-contain brightness-125 z-20 transition-opacity duration-500 ${logoLoaded ? 'opacity-100' : 'opacity-0'}`}
                       onLoad={() => setLogoLoaded(true)}
                       onError={(e) => {
@@ -229,7 +295,7 @@ export default function App() {
                         <div className="w-24 h-24 border-4 border-red-600 rounded-lg rotate-45 flex items-center justify-center mb-4">
                            <span className="text-4xl font-display font-medium -rotate-45 text-red-600">VS</span>
                         </div>
-                        <span className="text-3xl font-display font-black italic tracking-tighter text-white">VISHVAM</span>
+                        <span className="text-3xl font-display font-black italic tracking-tighter text-white">VISHWAM</span>
                      </div>
                    )}
                 </div>
@@ -242,7 +308,7 @@ export default function App() {
                 className="text-center"
               >
                 <div className="h-[1px] w-32 bg-gradient-to-r from-transparent via-red-600 to-transparent mx-auto mb-4" />
-                <h1 className="text-4xl md:text-5xl font-black italic tracking-tighter text-white mb-2">VISHVAM</h1>
+                <h1 className="text-4xl md:text-5xl font-black italic tracking-tighter text-white mb-2">VISHWAM</h1>
                 <p className="text-[14px] tracking-[1em] uppercase text-red-500 font-black mb-8">
                   PRESENTS
                 </p>
@@ -258,22 +324,156 @@ export default function App() {
             </motion.div>
           </motion.div>
         )}
+
+        {/* Lock Screen */}
+        {!showSplash && isLocked && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-[90] bg-[#050505] flex flex-col items-center justify-start md:justify-center p-4 md:p-6 overflow-y-auto"
+          >
+            {/* Background Branding */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-[0.03] z-0">
+              <div className="absolute top-0 right-0 p-20 text-[20vw] font-black italic tracking-tighter rotate-12 select-none">
+                VISHWAM
+              </div>
+              <div className="absolute bottom-0 left-0 p-20 text-[20vw] font-black italic tracking-tighter -rotate-12 select-none">
+                VISHWAM
+              </div>
+            </div>
+
+            <motion.div
+              animate={isShaking ? { x: [-10, 10, -10, 10, 0] } : {}}
+              transition={{ duration: 0.4 }}
+              className="w-full max-w-md relative z-10 py-8"
+            >
+              <div className="text-center mb-8 md:mb-12">
+                <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-red-600/10 border border-red-600/30 mb-4 md:mb-6 group transition-all duration-500 hover:border-red-600">
+                  {lockoutTime ? (
+                    <ShieldAlert className="w-8 h-8 md:w-10 md:h-10 text-red-600 animate-pulse" />
+                  ) : (
+                    <Lock className="w-8 h-8 md:w-10 md:h-10 text-red-600" />
+                  )}
+                </div>
+                <h2 className="text-2xl md:text-3xl font-display font-bold text-white mb-2 tracking-tight italic">SECURITY PROTOCOL</h2>
+                <p className="text-gray-500 text-[10px] md:text-sm uppercase tracking-[0.2em] font-semibold">Authorized Personnel Only</p>
+              </div>
+
+              <div 
+                className="bg-[#0a0a0a] border border-red-900/30 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-xl"
+                onClick={() => document.getElementById('pin-input')?.focus()}
+              >
+                {lockoutTime ? (
+                  <div className="text-center space-y-6 py-4">
+                    <div className="flex items-center justify-center gap-3 text-red-500 animate-bounce">
+                      <AlertCircle className="w-6 h-6" />
+                      <span className="font-bold tracking-widest uppercase">System Locked Out</span>
+                    </div>
+                    <div className="text-5xl font-mono font-black text-red-600">
+                      {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                    </div>
+                    <p className="text-gray-500 text-xs leading-relaxed uppercase tracking-wider">
+                      Multiple failed attempts detected.<br/>Wait for cooldown period to expire.
+                    </p>
+                  </div>
+                ) : (
+                  <form onSubmit={handlePinSubmit} className="space-y-8">
+                    <div className="space-y-4">
+                      <div className="flex justify-center gap-4">
+                        {[0, 1, 2, 3].map((i) => (
+                          <div 
+                            key={i}
+                            className={`w-4 h-4 rounded-full border-2 transition-all duration-300 ${
+                              pin.length > i 
+                                ? 'bg-red-600 border-red-600 scale-125 shadow-[0_0_10px_rgba(220,38,38,0.5)]' 
+                                : 'border-red-900/40 bg-transparent'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <input
+                        id="pin-input"
+                        type="password"
+                        maxLength={4}
+                        autoFocus
+                        value={pin}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9]/g, '');
+                          setPin(val);
+                        }}
+                        className="opacity-0 absolute -top-10 left-0 w-1 h-1 pointer-events-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 md:gap-4">
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '←'].map((key, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            if (key === '←') setPin(prev => prev.slice(0, -1));
+                            else if (key !== '') setPin(prev => (prev.length < 4 ? prev + key : prev));
+                          }}
+                          className={`h-12 md:h-16 rounded-xl md:rounded-2xl flex items-center justify-center font-bold text-lg md:text-xl transition-all duration-200 ${
+                            key === '' ? 'pointer-events-none opacity-0' : 'bg-gray-900/40 text-gray-400 hover:bg-red-600 hover:text-black hover:shadow-[0_0_20px_rgba(220,38,38,0.3)] touch-none'
+                          }`}
+                        >
+                          {key}
+                        </button>
+                      ))}
+                    </div>
+
+                    {attempts > 0 && (
+                      <div className="text-center">
+                        <p className="text-red-500/70 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
+                          Access Denied ({attempts}/5 Attempts)
+                        </p>
+                      </div>
+                    )}
+                  </form>
+                )}
+              </div>
+
+              <div className="mt-12 text-center">
+                <p className="text-[10px] text-gray-700 tracking-[0.4em] uppercase font-bold">
+                  Encryption Layer Active • Vishwam v3.2
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
       {/* Sidebar */}
       <motion.aside 
         initial={false}
-        animate={{ width: isSidebarOpen ? 260 : 0, opacity: isSidebarOpen ? 1 : 0 }}
-        className="bg-[#000000] border-r border-red-900/30 flex flex-col h-full overflow-hidden relative z-30"
+        animate={{ 
+          width: isSidebarOpen ? (isMobile ? '100%' : 260) : 0, 
+          opacity: isSidebarOpen ? 1 : 0,
+          x: isSidebarOpen ? 0 : (isMobile ? -100 : 0)
+        }}
+        className={`bg-[#000000] border-r border-red-900/30 flex flex-col h-full overflow-hidden z-50 ${isMobile ? 'fixed inset-0' : 'relative'}`}
       >
-        <div className="p-4">
+        <div className="p-4 flex items-center justify-between">
           <button 
             id="new-chat-btn"
-            onClick={createNewSession}
-            className="w-full flex items-center justify-center gap-2 border border-red-600/50 hover:bg-red-600/10 rounded-lg transition-all duration-300 py-3 px-4 text-red-500 font-medium text-sm"
+            onClick={() => {
+              createNewSession();
+              if (isMobile) setIsSidebarOpen(false);
+            }}
+            className="flex-1 flex items-center justify-center gap-2 border border-red-600/50 hover:bg-red-600/10 rounded-lg transition-all duration-300 py-3 px-4 text-red-500 font-medium text-sm"
           >
             <Plus className="w-4 h-4" />
             <span>New Chat</span>
           </button>
+          
+          {isMobile && (
+            <button 
+              onClick={() => setIsSidebarOpen(false)}
+              className="ml-2 p-2 text-gray-500 hover:text-red-500"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 custom-scrollbar">
@@ -283,7 +483,10 @@ export default function App() {
               <button
                 id={`session-${session.id}`}
                 key={session.id}
-                onClick={() => setCurrentSessionId(session.id)}
+                onClick={() => {
+                  setCurrentSessionId(session.id);
+                  if (isMobile) setIsSidebarOpen(false);
+                }}
                 className={`w-full group flex items-center justify-between p-2.5 px-3 rounded-md text-left text-sm transition-all duration-200 ${
                   currentSessionId === session.id 
                     ? 'bg-red-950/20 text-red-400 border-l-2 border-red-600 shadow-[inset_0_0_10px_rgba(153,27,27,0.1)]' 
@@ -322,15 +525,17 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col relative bg-[#050505]">
         {/* Toggle Sidebar Button */}
-        <button 
-          id="toggle-sidebar"
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className={`absolute left-0 top-1/2 -translate-y-1/2 z-40 p-1 bg-red-600 text-black hover:bg-red-500 transition-all duration-300 rounded-r-md shadow-lg ${
-            isSidebarOpen ? 'translate-x-[260px]' : 'translate-x-0'
-          }`}
-        >
-          {isSidebarOpen ? <ChevronLeft className="w-3 h-6" /> : <ChevronRight className="w-3 h-6" />}
-        </button>
+        {!isLocked && (
+          <button 
+            id="toggle-sidebar"
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className={`absolute left-0 top-1/2 -translate-y-1/2 z-40 p-1 bg-red-600 text-black hover:bg-red-500 transition-all duration-300 rounded-r-md shadow-lg ${
+              isSidebarOpen && !isMobile ? 'translate-x-[260px]' : 'translate-x-0'
+            } ${isMobile && isSidebarOpen ? 'hidden' : 'block'}`}
+          >
+            {isSidebarOpen ? <ChevronLeft className="w-3 h-6" /> : <ChevronRight className="w-3 h-6" />}
+          </button>
+        )}
 
         {/* Chat Header */}
         <header className="h-16 border-b border-red-900/20 flex items-center justify-between px-8 bg-[#0a0a0a]/50 backdrop-blur-sm sticky top-0 z-20">
@@ -347,7 +552,7 @@ export default function App() {
                {!logoLoaded && <span className="text-xs font-black text-red-600">VS</span>}
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-red-600 font-black text-2xl tracking-tighter italic">VISHVAM</span>
+              <span className="text-red-600 font-black text-2xl tracking-tighter italic">VISHWAM</span>
               <span className="px-1.5 py-0.5 rounded bg-red-600 text-[10px] font-bold text-black uppercase">AI AGENT</span>
             </div>
           </div>
@@ -362,7 +567,7 @@ export default function App() {
         <div className="flex-1 overflow-y-auto px-4 md:px-0 custom-scrollbar relative">
           {/* Subtle Background Text */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.02] select-none z-0">
-            <span className="text-[150px] md:text-[200px] font-black italic tracking-tighter">GHATODHAR</span>
+            <span className="text-[150px] md:text-[200px] font-black italic tracking-tighter">VISHWAM</span>
           </div>
 
           {!currentSession || currentSession.messages.length === 0 ? (
